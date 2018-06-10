@@ -1,6 +1,7 @@
 package com.example.sucianalf.grouptracking;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -10,8 +11,10 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.widget.SearchView;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -27,8 +30,16 @@ import com.example.sucianalf.grouptracking.Dijkstra.Edge;
 import com.example.sucianalf.grouptracking.Dijkstra.Graph;
 import com.example.sucianalf.grouptracking.Dijkstra.Vertex;
 import com.example.sucianalf.grouptracking.Model.DijkstraObject;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
+import com.google.android.gms.common.GooglePlayServicesRepairableException;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.ui.PlaceAutocomplete;
+import com.google.android.gms.location.places.ui.PlaceAutocompleteFragment;
+import com.google.android.gms.location.places.ui.PlaceSelectionListener;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -76,6 +87,7 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
     public ArrayList<LatLng> latlngs = new ArrayList<>();
 
     public ArrayList<DijkstraObject> getLatlngs = new ArrayList<>();
+    private static final int REQUEST_CODE_AUTOCOMPLETE = 1;
 
 
     //public ArrayList<DijkstraObject> dijkstra = new ArrayList<>();
@@ -93,6 +105,12 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
         count = 0;
         count1 = 0;
         mSearchText = findViewById(R.id.input_search);
+        mSearchText.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openAutocompleteActivity();
+            }
+        });
         getLocationPermission();
     }
 
@@ -102,6 +120,7 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
         mMap.setMaxZoomPreference(16);
 
         if (mLocationPermissionsGranted) {
+
             getDeviceLocationOnMapReady();
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                     != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this,
@@ -110,55 +129,41 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
             }
             mMap.setMyLocationEnabled(true);
             mMap.getUiSettings().setMyLocationButtonEnabled(true);
-            init();
+        }
+    }
+    private void openAutocompleteActivity() {
+        try {
+            Intent intent = new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_OVERLAY)
+                    .build(this);
+            startActivityForResult(intent, REQUEST_CODE_AUTOCOMPLETE);
+        } catch (GooglePlayServicesRepairableException e) {
+            GoogleApiAvailability.getInstance().getErrorDialog(this, e.getConnectionStatusCode(),
+                    0 /* requestCode */).show();
+        } catch (GooglePlayServicesNotAvailableException e) {
+            String message = "Google Play Services is not available: " +
+                    GoogleApiAvailability.getInstance().getErrorString(e.errorCode);
 
-            if (getLatlngs.size() > 1 && getLatlngs != null) {
-                Dijkstra obj = new Dijkstra();
-                Graph g = new Graph(getLatlngs.size()+1);
-
-                for (DijkstraObject get : getLatlngs) {
-                    options.position(new LatLng(get.getstartLat(), get.getStartLng()));
-                    options.title("V" + get.getIndex());
-                    options.snippet(""+(int)get.getDistance());
-                    options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA));
-                    mMap.addMarker(options);
-
-                    g.addEdge(get.getIndex(), get.getEndIndex(), (int)get.getDistance());
-                    g.addEdge(get.getEndIndex(), get.getIndex(), (int)get.getDistance());
-                }
-
-                obj.calculate(g.getVertex(0));
-
-                // Print the minimum Distance.
-                for(Vertex v:g.getVertices()) {
-                    Log.d(TAG, "Vertex - " + v + " , Dist - " + v.minDistance + " , Path - ");
-                    for (Vertex pathvert : v.path) {
-                        System.out.print(pathvert + " ");
-                    }
-                    Log.d(TAG, ""+v);
-                }
-            }
-
-
+            Log.e("ERROR", message);
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void getLocationPermission(){
+    private void getLocationPermission() {
         String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION};
 
-        if(ContextCompat.checkSelfPermission(this.getApplicationContext(),
-                FINE_LOCATION) == PackageManager.PERMISSION_GRANTED){
-            if(ContextCompat.checkSelfPermission(this.getApplicationContext(),
-                    COURSE_LOCATION) == PackageManager.PERMISSION_GRANTED){
+        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                    COURSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 mLocationPermissionsGranted = true;
                 initMap();
-            }else{
+            } else {
                 ActivityCompat.requestPermissions(this,
                         permissions,
                         LOCATION_PERMISSION_REQUEST_CODE);
             }
-        }else{
+        } else {
             ActivityCompat.requestPermissions(this,
                     permissions,
                     LOCATION_PERMISSION_REQUEST_CODE);
@@ -166,7 +171,7 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
         Log.d(TAG, "Location Permission: Auth Location Permission");
     }
 
-    private void initMap(){
+    private void initMap() {
         Log.d(TAG, "initMap: initializing map");
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
@@ -177,9 +182,9 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         mLocationPermissionsGranted = false;
 
-        switch(requestCode){
-            case LOCATION_PERMISSION_REQUEST_CODE:{
-                if(grantResults.length > 0){
+        switch (requestCode) {
+            case LOCATION_PERMISSION_REQUEST_CODE: {
+                if (grantResults.length > 0) {
                     for (int grantResult : grantResults) {
                         if (grantResult != PackageManager.PERMISSION_GRANTED) {
                             mLocationPermissionsGranted = false;
@@ -195,65 +200,42 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
         }
     }
 
-    private void init(){
-        Log.d(TAG, "init: initializing");
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
 
-        mSearchText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-            @Override
-            public boolean onEditorAction(TextView textView, int actionId, KeyEvent keyEvent) {
-                if(actionId == EditorInfo.IME_ACTION_SEARCH
-                        || actionId == EditorInfo.IME_ACTION_DONE
-                        || keyEvent.getAction() == KeyEvent.ACTION_DOWN
-                        || keyEvent.getAction() == KeyEvent.KEYCODE_ENTER)
-                {
-                    geoLocate();
-                    makeJsonObjectRequestPlaceId(OriAPI, DestAPI);
-                    makeJsonObjectRequestNode(placeIdOri, placeIdDest);
-
-                    if (count == 0) {
-                        if (placeIdDest == null && placeIdOri == null) {
-                            count++;
-                            Toast.makeText(DisplayNavigation.this, "Internal Server Error. Please Try Again", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-
-                    if (placeIdDest != null || placeIdOri != null)
-                    {
-                        count++;
-                    }
-
-                    if (count == 3)
-                    {
-                        if (latlngs == null || latlngs.size() < 1 ){
-                            count++;
-                            Toast.makeText(DisplayNavigation.this, "Internal Server Error. Please Try Again", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                }
-                return false;
+        if (requestCode == REQUEST_CODE_AUTOCOMPLETE) {
+            if (resultCode == RESULT_OK) {
+                Place place = PlaceAutocomplete.getPlace(this, data);
+                Log.i("TAG", "Place Selected: " + place.getName());
+                String addressPlace = String.valueOf(place.getAddress());
+                geoLocate(addressPlace);
+                mSearchText.setText(addressPlace);
+            } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
+                Status status = PlaceAutocomplete.getStatus(this, data);
+                Log.e("TAG", "Error: Status = " + status.toString());
             }
-        });
+        }
     }
 
-    private void geoLocate(){
+
+
+    private void geoLocate(String searchString) {
         Log.d(TAG, "geoLocate: geolocating");
 
-        searchString = mSearchText.getText().toString();
-        Geocoder geocoder = new Geocoder(DisplayNavigation.this);
 
+        Geocoder geocoder = new Geocoder(DisplayNavigation.this);
+        makeJsonObjectRequestPlaceId(OriAPI);
         List<Address> list = new ArrayList<>();
-        try{
+        try {
             list = geocoder.getFromLocationName(searchString, 1);
-        }catch (IOException e){
-            Log.e(TAG, "geoLocate: IOException: " + e.getMessage() );
+        } catch (IOException e) {
+            Log.e(TAG, "geoLocate: IOException: " + e.getMessage());
         }
 
-        if(list.size() > 0) {
+
+        if (list.size() > 0) {
             Address address = list.get(0);
-            if(mrk != null)
-            {
-                mrk.remove();
-            }
             Log.i(TAG, "geoLocate: found  location: " + address.toString());
 
             carilat = address.getLatitude();
@@ -261,22 +243,24 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
             LatLng cari = new LatLng(carilat, carilong);//dari search
             LatLng ini = new LatLng(inilat, inilong);//lokasi device
 
+            moveCamera(cari,
+                    DEFAULT_ZOOM);
+
             DestAPI = BASE_JSONURL + "origin=" + carilat + "," + carilong +
                     "&destination=" + carilat + "," + carilong +
                     "&mode=driving&alternatives=true&key=" + API_KEY;
-            Log.i(TAG, "geoLocate: found destloc placeid: "+DestAPI);
+            Log.i(TAG, "geoLocate: found destloc placeid: " + DestAPI);
 
             //initMap();
 
             LatLngBounds.Builder builder = new LatLngBounds.Builder();
-            mrk =  mMap.addMarker(new MarkerOptions().position(cari).title(mSearchText.getText().toString()));
+            mrk = mMap.addMarker(new MarkerOptions().position(cari).title(searchString));
             builder.include(cari);
             builder.include(ini);
             int width = getResources().getDisplayMetrics().widthPixels;
             int height = getResources().getDisplayMetrics().heightPixels;
             int padding = (int) (height * 0.20);
 
-            onMapReady(mMap);
 
             LatLngBounds bounds = builder.build();
             CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, width, height, padding);
@@ -284,46 +268,42 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
         }
     }
 
-    private void getDeviceLocationOnMapReady(){
+    private void getDeviceLocationOnMapReady() {
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-        try{
-            if(mLocationPermissionsGranted){
+        try {
+            if (mLocationPermissionsGranted) {
                 final Task location = mFusedLocationProviderClient.getLastLocation();
                 location.addOnCompleteListener(new OnCompleteListener() {
                     @Override
                     public void onComplete(@NonNull Task task) {
-                        if(task.isSuccessful()){
+                        if (task.isSuccessful()) {
                             Location currentLocation = (Location) task.getResult();
                             inilat = currentLocation.getLatitude();
                             inilong = currentLocation.getLongitude();
 
                             OriAPI = BASE_JSONURL + "origin=" + inilat + "," + inilong +
-                                    "&destination=" + inilat + "," +inilong +
-                                    "&mode=driving&alternatives=true&key="+API_KEY;
-                            Log.i(TAG, "Device Location: "+OriAPI);
-                            if (count1 == 0)
-                            {
-                                count1++;
-                                moveCamera(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()),
+                                    "&destination=" + inilat + "," + inilong +
+                                    "&mode=driving&alternatives=true&key=" + API_KEY;
+                            Log.i(TAG, "Device Location: " + OriAPI);
+                            moveCamera(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()),
                                         DEFAULT_ZOOM);
-                            }
-                        }else{
+                        } else {
                             Toast.makeText(DisplayNavigation.this, "unable to get current location", Toast.LENGTH_LONG).show();
                         }
                     }
                 });
             }
-        }catch (SecurityException e){
-            Log.e(TAG, "getDeviceLocation: SecurityException: " + e.getMessage() );
+        } catch (SecurityException e) {
+            Log.e(TAG, "getDeviceLocation: SecurityException: " + e.getMessage());
         }
     }
 
-    private void moveCamera(LatLng latLng, float zoom){
-        Log.d(TAG, "moveCamera: moving the camera to: lat: " + latLng.latitude + ", lng: " + latLng.longitude );
+    private void moveCamera(LatLng latLng, float zoom) {
+        Log.d(TAG, "moveCamera: moving the camera to: lat: " + latLng.latitude + ", lng: " + latLng.longitude);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
     }
 
-    private void makeJsonObjectRequestPlaceId(String JsonOrigin, String JsonDestination){
+    private void makeJsonObjectRequestPlaceId(String JsonOrigin) {
         String JsonOriginURL = JsonOrigin;
         JsonObjectRequest jsonObjReqOrigin = new JsonObjectRequest(Request.Method.GET, JsonOriginURL,
                 null, new Response.Listener<JSONObject>() {
@@ -335,6 +315,7 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
                             .getString("place_id")
                             .toString();
                     Log.i("Origin Place_Id", placeIdOri);
+                    RequestDestinationId(DestAPI);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -347,6 +328,9 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
             }
         });
         AppController.getInstance().addToRequestQueue(jsonObjReqOrigin);
+    }
+
+    private void RequestDestinationId(String JsonDestination) {
 
         String JsonDestinationURL = JsonDestination;
         JsonObjectRequest jsonObjReqDestination = new JsonObjectRequest(Request.Method.GET, JsonDestinationURL,
@@ -359,6 +343,7 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
                             .getString("place_id")
                             .toString();
                     Log.d("Destination Place_Id", placeIdDest);
+                    makeJsonObjectRequestNode(placeIdOri, placeIdDest);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -367,15 +352,16 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
             @Override
             public void onErrorResponse(VolleyError error) {
                 VolleyLog.d(TAG, "Error: " + error.getMessage());
-                Toast.makeText(getApplicationContext(),error.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
         AppController.getInstance().addToRequestQueue(jsonObjReqDestination);
+
     }
 
-    private void makeJsonObjectRequestNode(String oriNode, String destNode){
-        String urlJsonObj = BASE_JSONURL+"origin=place_id:" + oriNode +
-                "&destination=place_id:" + destNode + "&mode=driving&units=metric&avoid=tolls&alternatives=true&key="+API_KEY;
+    private void makeJsonObjectRequestNode(String oriNode, String destNode) {
+        String urlJsonObj = BASE_JSONURL + "origin=place_id:" + oriNode +
+                "&destination=place_id:" + destNode + "&mode=driving&units=metric&avoid=tolls&alternatives=true&key=" + API_KEY;
 
         JsonObjectRequest jsonObjReq = new JsonObjectRequest(Request.Method.GET, urlJsonObj,
                 null, new Response.Listener<JSONObject>() {
@@ -390,33 +376,57 @@ public class DisplayNavigation extends FragmentActivity implements OnMapReadyCal
                     int l = 1;
                     int temp = 0;
                     int temp2 = 0;
-                    for (int j=0; j < routes.length(); j++){
+                    for (int j = 0; j < routes.length(); j++) {
                         JSONArray steps = routes.getJSONObject(j)
                                 .getJSONArray("legs")
                                 .getJSONObject(0)
                                 .getJSONArray("steps");
                         k = temp;
                         l = temp2;
-                        for(int i=0; i < steps.length(); i++){
+                        for (int i = 0; i < steps.length(); i++) {
                             double startLat = steps.getJSONObject(i).getJSONObject("start_location").getDouble("lat");
                             double startLng = steps.getJSONObject(i).getJSONObject("start_location").getDouble("lng");
                             double endLat = steps.getJSONObject(i).getJSONObject("end_location").getDouble("lat");
                             double endLng = steps.getJSONObject(i).getJSONObject("end_location").getDouble("lng");
                             double distance = steps.getJSONObject(i).getJSONObject("distance").getDouble("value");
 //                            latlngs.add(new LatLng(startLat, startLng));
-                            if (l != steps.length())
-                            {
+                            if (l != steps.length()) {
                                 getLatlngs.add(new DijkstraObject(k, startLat, startLng, endLat, endLng, l, distance));
-                            }
-                            else
-                            {
+                            } else {
                                 getLatlngs.add(new DijkstraObject(k, startLat, startLng, endLat, endLng, k, 0));
                             }
                             k++;
                             l++;
                         }
                         temp = k;
-                        temp2=l;
+                        temp2 = l;
+
+                        if (getLatlngs.size() > 1 && getLatlngs != null) {
+                            Dijkstra obj = new Dijkstra();
+                            Graph g = new Graph(getLatlngs.size() + 1);
+
+                            for (DijkstraObject get : getLatlngs) {
+                                options.position(new LatLng(get.getstartLat(), get.getStartLng()));
+                                options.title("V" + get.getIndex());
+                                options.snippet("" + (int) get.getDistance());
+                                options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA));
+                                mMap.addMarker(options);
+
+                                g.addEdge(get.getIndex(), get.getEndIndex(), (int) get.getDistance());
+                                g.addEdge(get.getEndIndex(), get.getIndex(), (int) get.getDistance());
+                            }
+
+                            obj.calculate(g.getVertex(0));
+
+                            // Print the minimum Distance.
+                            for (Vertex v : g.getVertices()) {
+                                Log.d(TAG, "Vertex - " + v + " , Dist - " + v.minDistance + " , Path - ");
+                                for (Vertex pathvert : v.path) {
+                                    System.out.print(pathvert + " ");
+                                }
+                                Log.d(TAG, "" + v);
+                            }
+                        }
                     }
 
                 } catch (JSONException e) {
