@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
+    <color name="colorWhite">#fff</color>
+
+    <color name="background_color">#009688</color>
+    <color name="warna1">#546de5</color>
+    <color name="warna2">#4a69bd</color>
+    <color name="warna3">#1e3799</color>
+    <color name="warna4">#0c2461</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="white_greyish">#EEEEEE</color>
+    <color name="button_selectorcolor">#9E9E9E</color>
+
+    <color name="colorDivider">#ebe9e7</color>
+</resources>
